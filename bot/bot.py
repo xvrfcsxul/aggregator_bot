@@ -1,5 +1,5 @@
 """Entry point of project."""
-from json import loads
+from json import loads, dumps
 from os import getenv
 from re import match
 
@@ -45,6 +45,9 @@ async def print_response_from_db(message: Message):
             )
         )
     answer: str = await response.text()
+    answer = answer.replace('":', '": ')
+    answer = answer.replace(",", ", ")
+    
     await message.answer(
         answer if len(answer) < MESSAGE_MAX_LENGTH else REDUSE_THE_SELECTION
     )
