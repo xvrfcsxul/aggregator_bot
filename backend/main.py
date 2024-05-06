@@ -1,6 +1,6 @@
 """This script contains the basic logic of the bot."""
-
-from datetime import datetime as dt
+import json
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +31,7 @@ async def aggregate_payments(dt_from, dt_upto, group_type):
 
     collection: Collection = MongoClient("mongo_db", 27017)["task"]["salary"]
 
-    dt_from, dt_upto = dt.fromisoformat(dt_from), dt.fromisoformat(dt_upto)
+    dt_from, dt_upto = datetime.fromisoformat(dt_from), datetime.fromisoformat(dt_upto)
     dt_format: str = GROUP_TYPE_FORMATS.get(group_type)
 
     aggregated_results: CommandCursor = collection.aggregate([
@@ -43,9 +43,18 @@ async def aggregate_payments(dt_from, dt_upto, group_type):
         {"$sort": {"_id": 1}},
     ])
 
-    dataset, labels = zip(*[[
-        result["total"],
-        dt.strptime(result["_id"], dt_format).isoformat()
-    ] for result in aggregated_results])
+    if group_type == "hour":
+        all_dates = [dt_from + timedelta(hours=x) for x in range(int((dt_upto-dt_from).total_seconds() // 3600 + 1))]
+    else:
+        all_dates = [dt_from + timedelta(days=x) for x in range((dt_upto-dt_from).days + 1)]
 
-    return {"dataset": dataset, "labels": labels}
+    salary_dict = {date.strftime(dt_format): 0 for date in all_dates}
+
+    for result in aggregated_results:
+        salary_dict[result["_id"]] = result["total"]
+
+    dataset = list(salary_dict.values())
+    labels = list(salary_dict.keys())
+
+    result_dict = {"dataset": dataset, "labels": labels}
+    return result_dict
